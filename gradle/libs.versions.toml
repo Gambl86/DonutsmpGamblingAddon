@@ -5,10 +5,10 @@ mod-version = "0.1.0"
 jdk = "25"
 minecraft = "26.2"
 yarn-mappings = "26.2+build.1"
-fabric-loader = "0.16.0"
+fabric-loader = "0.19.3"
 
 # Loom
-loom = "1.7-SNAPSHOT"
+loom = "1.17-SNAPSHOT"
 
 # Meteor
 meteor = "26.2-SNAPSHOT"
