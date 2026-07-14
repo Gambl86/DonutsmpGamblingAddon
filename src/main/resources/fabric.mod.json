@@ -22,9 +22,8 @@
   "mixins": [
     "addon.mixins.json"
   ],
-  "depends": {
-    "fabricloader": ">=0.14.0",
-    "minecraft": "~1.21",
-    "meteor-client": "*"
-  }
+"depends": {
+  "fabricloader": ">=0.14.0",
+  "minecraft": "~1.21.11",
+  "meteor-client": "*"
 }
