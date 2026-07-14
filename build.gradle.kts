@@ -1,5 +1,5 @@
 plugins {
-    alias(libs.plugins.fabric.loom)
+    id("net.fabricmc.fabric-loom") version "1.17-SNAPSHOT"
 }
 
 base {
