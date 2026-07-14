@@ -1,36 +1,30 @@
 {
   "schemaVersion": 1,
-  "id": "addon-template",
-  "version": "${version}",
-  "name": "Addon Template",
-  "description": "An addon template for Meteor Client addons.",
+  "id": "economy-gambler",
+  "version": "1.0.0",
+  "name": "Economy Gambler",
+  "description": "An automated casino system natively integrated into Meteor Client.",
   "authors": [
-    "seasnail"
+    "Meteor Developer"
   ],
   "contact": {
+    "homepage": "https://meteorclient.com",
     "sources": "https://github.com/MeteorDevelopment/meteor-addon-template"
   },
-  "icon": "assets/template/icon.png",
-  "environment": "client",
+  "license": "MIT",
+  "icon": "assets/addon/icon.png",
+  "environment": "*",
   "entrypoints": {
     "meteor": [
-      "com.example.addon.AddonTemplate"
+      "meteordevelopment.addon.Addon"
     ]
   },
   "mixins": [
-    "addon-template.mixins.json"
+    "addon.mixins.json"
   ],
-  "custom": {
-    "meteor-client:color": "225,25,25",
-    "modmenu": {
-      "parent": {
-        "id": "meteor-client"
-      }
-    }
-  },
   "depends": {
-    "java": ">=${jdk_version}",
-    "minecraft": "${minecraft_version}",
+    "fabricloader": ">=0.14.0",
+    "minecraft": "~1.21",
     "meteor-client": "*"
   }
 }
