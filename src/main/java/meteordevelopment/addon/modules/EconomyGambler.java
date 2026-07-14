@@ -6,11 +6,9 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.client.multiplayer.PlayerInfo;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class EconomyGambler extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -48,7 +46,7 @@ public class EconomyGambler extends Module {
     private final Setting<Integer> maxBet = sgGeneral.add(new IntSetting.Builder()
             .name("max-bet")
             .description("Maximaler erlaubter Einsatz.")
-            .defaultValue(2000000000) // Begrenzt auf 2 Milliarden wegen Int-Limit
+            .defaultValue(2000000000) // Begrenzt auf 2 Milliarden wegen Int-Grenzbereich
             .min(0)
             .build()
     );
@@ -96,11 +94,10 @@ public class EconomyGambler extends Module {
     private int ticksPassed = 0;
     
     private final Set<String> alreadyMessaged = new HashSet<>();
-    
     private final Pattern paymentPattern = Pattern.compile("(?:From )?([a-zA-Z0-9_]{3,16})\\s*(?:has sent you|-> You:)\\s*\\$?([0-9.,]+)\\s*([kKmMbB]?)");
 
     public EconomyGambler() {
-        super(Addon.GAMBLING_CATEGORY, "economy-gambler", "Automatisches Casino mit intelligentem Werbe-Flüstern.");
+        super(Addon.GAMBLING_CATEGORY, "economy-gambler", "Automatisches Casino optimiert für Version 1.21.11 Mojang-Mappings.");
     }
 
     @Override
@@ -111,7 +108,7 @@ public class EconomyGambler extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (mc.player == null || mc.getConnection() == null || !enableAutoMsg.get()) return;
+        if (mc.player == null || !enableAutoMsg.get()) return;
 
         ticksPassed++;
         
@@ -122,25 +119,35 @@ public class EconomyGambler extends Module {
     }
 
     private void sendAdvertisingMessage() {
-        Collection<PlayerInfo> playerList = mc.getConnection().getOnlinePlayers();
-        if (playerList == null || playerList.isEmpty()) return;
+        if (mc.player.connection == null) return;
+        
+        // Nutzt die für 1.21.11 Mojang-Mappings stabilen Paket-IDs
+        var onlineIds = mc.player.connection.getOnlinePlayerIds();
+        if (onlineIds == null || onlineIds.isEmpty()) return;
 
-        String myName = mc.player.getGameProfile().getName();
+        List<String> validTargets = new ArrayList<>();
+        String myName = mc.player.getScoreboardName();
 
-        List<String> validTargets = playerList.stream()
-                .map(entry -> entry.getProfile().getName())
-                .filter(name -> !name.equalsIgnoreCase(myName))
-                .filter(this::isNotBlacklisted)
-                .filter(name -> !alreadyMessaged.contains(name))
-                .collect(Collectors.toList());
+        for (UUID id : onlineIds) {
+            var playerInfo = mc.player.connection.getPlayerInfo(id);
+            if (playerInfo == null || playerInfo.getProfile() == null) continue;
+            
+            String name = playerInfo.getProfile().getName();
+            if (name != null && !name.equalsIgnoreCase(myName) && !isBlacklisted(name) && !alreadyMessaged.contains(name)) {
+                validTargets.add(name);
+            }
+        }
 
         if (validTargets.isEmpty() && !alreadyMessaged.isEmpty()) {
             alreadyMessaged.clear();
-            validTargets = playerList.stream()
-                    .map(entry -> entry.getProfile().getName())
-                    .filter(name -> !name.equalsIgnoreCase(myName))
-                    .filter(this::isNotBlacklisted)
-                    .collect(Collectors.toList());
+            for (UUID id : onlineIds) {
+                var playerInfo = mc.player.connection.람getPlayerInfo(id);
+                if (playerInfo == null || playerInfo.getProfile() == null) continue;
+                String name = playerInfo.getProfile().getName();
+                if (name != null && !name.equalsIgnoreCase(myName) && !isBlacklisted(name)) {
+                    validTargets.add(name);
+                }
+            }
         }
 
         if (validTargets.isEmpty()) return;
@@ -155,7 +162,7 @@ public class EconomyGambler extends Module {
 
     @EventHandler
     private void onReceiveMessage(ReceiveMessageEvent event) {
-        if (mc.player == null || mc.level == null) return;
+        if (mc.player == null || event.getMessage() == null) return;
 
         String rawMessage = event.getMessage().getString();
         Matcher matcher = paymentPattern.matcher(rawMessage);
@@ -196,10 +203,6 @@ public class EconomyGambler extends Module {
             }
         }
         return false;
-    }
-
-    private boolean isNotBlacklisted(String username) {
-        return !isBlacklisted(username);
     }
 
     private int parseMultiplier(int amount, String suffix) {
@@ -244,7 +247,8 @@ public class EconomyGambler extends Module {
                 .replace("{player}", player)
                 .replace("{amount}", String.valueOf(amount));
         
-        mc.player.connection.sendChatCommand(command.replace("/", ""));
+        if (command.startsWith("/")) command = command.substring(1);
+        mc.player.connection.sendChatCommand(command);
     }
 
     private void sendChatResponse(String player, String message) {
