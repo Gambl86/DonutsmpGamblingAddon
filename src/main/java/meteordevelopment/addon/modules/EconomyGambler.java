@@ -46,7 +46,7 @@ public class EconomyGambler extends Module {
     private final Setting<Integer> maxBet = sgGeneral.add(new IntSetting.Builder()
             .name("max-bet")
             .description("Maximaler erlaubter Einsatz.")
-            .defaultValue(2000000000) // Begrenzt auf 2 Milliarden wegen Int-Grenzbereich
+            .defaultValue(2000000000)
             .min(0)
             .build()
     );
@@ -97,7 +97,7 @@ public class EconomyGambler extends Module {
     private final Pattern paymentPattern = Pattern.compile("(?:From )?([a-zA-Z0-9_]{3,16})\\s*(?:has sent you|-> You:)\\s*\\$?([0-9.,]+)\\s*([kKmMbB]?)");
 
     public EconomyGambler() {
-        super(Addon.GAMBLING_CATEGORY, "economy-gambler", "Automatisches Casino optimiert für Version 1.21.11 Mojang-Mappings.");
+        super(Addon.GAMBLING_CATEGORY, "economy-gambler", "Automatisches Casino optimiert für Version 26.2.");
     }
 
     @Override
@@ -119,9 +119,8 @@ public class EconomyGambler extends Module {
     }
 
     private void sendAdvertisingMessage() {
-        if (mc.player.connection == null) return;
+        if (mc.getChatListener() == null || mc.player.connection == null) return;
         
-        // Nutzt die für 1.21.11 Mojang-Mappings stabilen Paket-IDs
         var onlineIds = mc.player.connection.getOnlinePlayerIds();
         if (onlineIds == null || onlineIds.isEmpty()) return;
 
@@ -141,7 +140,7 @@ public class EconomyGambler extends Module {
         if (validTargets.isEmpty() && !alreadyMessaged.isEmpty()) {
             alreadyMessaged.clear();
             for (UUID id : onlineIds) {
-                var playerInfo = mc.player.connection.람getPlayerInfo(id);
+                var playerInfo = mc.player.connection.getPlayerInfo(id);
                 if (playerInfo == null || playerInfo.getProfile() == null) continue;
                 String name = playerInfo.getProfile().getName();
                 if (name != null && !name.equalsIgnoreCase(myName) && !isBlacklisted(name)) {
