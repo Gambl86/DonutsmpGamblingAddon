@@ -6,7 +6,7 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.client.network.PlayerListEntry;
+import net.minecraft.client.multiplayer.PlayerInfo;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.*;
@@ -37,19 +37,19 @@ public class EconomyGambler extends Module {
             .build()
     );
 
-    private final Setting<Long> minBet = sgGeneral.add(new LongSetting.Builder()
+    private final Setting<Integer> minBet = sgGeneral.add(new IntSetting.Builder()
             .name("min-bet")
             .description("Minimaler erlaubter Einsatz.")
-            .defaultValue(0L)
-            .min(0L)
+            .defaultValue(0)
+            .min(0)
             .build()
     );
 
-    private final Setting<Long> maxBet = sgGeneral.add(new LongSetting.Builder()
+    private final Setting<Integer> maxBet = sgGeneral.add(new IntSetting.Builder()
             .name("max-bet")
             .description("Maximaler erlaubter Einsatz.")
-            .defaultValue(10000000000L) // 10 Milliarden
-            .min(0L)
+            .defaultValue(2000000000) // Begrenzt auf 2 Milliarden wegen Int-Limit
+            .min(0)
             .build()
     );
 
@@ -111,7 +111,7 @@ public class EconomyGambler extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (mc.player == null || mc.getNetworkHandler() == null || !enableAutoMsg.get()) return;
+        if (mc.player == null || mc.getConnection() == null || !enableAutoMsg.get()) return;
 
         ticksPassed++;
         
@@ -122,7 +122,7 @@ public class EconomyGambler extends Module {
     }
 
     private void sendAdvertisingMessage() {
-        Collection<PlayerListEntry> playerList = mc.getNetworkHandler().getPlayerList();
+        Collection<PlayerInfo> playerList = mc.getConnection().getOnlinePlayers();
         if (playerList == null || playerList.isEmpty()) return;
 
         String myName = mc.player.getGameProfile().getName();
@@ -130,7 +130,7 @@ public class EconomyGambler extends Module {
         List<String> validTargets = playerList.stream()
                 .map(entry -> entry.getProfile().getName())
                 .filter(name -> !name.equalsIgnoreCase(myName))
-                .filter(name -> !isBlacklisted(name))
+                .filter(this::isNotBlacklisted)
                 .filter(name -> !alreadyMessaged.contains(name))
                 .collect(Collectors.toList());
 
@@ -139,7 +139,7 @@ public class EconomyGambler extends Module {
             validTargets = playerList.stream()
                     .map(entry -> entry.getProfile().getName())
                     .filter(name -> !name.equalsIgnoreCase(myName))
-                    .filter(name -> !isBlacklisted(name))
+                    .filter(this::isNotBlacklisted)
                     .collect(Collectors.toList());
         }
 
@@ -148,18 +148,14 @@ public class EconomyGambler extends Module {
         String luckyPlayer = validTargets.get(random.nextInt(validTargets.size()));
         
         String finalCommand = "msg " + luckyPlayer + " /pay philipp86 for AUTOMATED 50/50 Gambling";
-        mc.player.networkHandler.sendChatCommand(finalCommand);
+        mc.player.connection.sendChatCommand(finalCommand);
 
         alreadyMessaged.add(luckyPlayer);
     }
 
     @EventHandler
     private void onReceiveMessage(ReceiveMessageEvent event) {
-        if (mc.player == null || mc.world == null) return;
-
-        if (event.isMessage() && event.getSender() != null) {
-            return; 
-        }
+        if (mc.player == null || mc.level == null) return;
 
         String rawMessage = event.getMessage().getString();
         Matcher matcher = paymentPattern.matcher(rawMessage);
@@ -172,8 +168,8 @@ public class EconomyGambler extends Module {
             if (isBlacklisted(playerName)) {
                 if (refundBlacklisted.get()) {
                     try {
-                        long baseAmount = Long.parseLong(amountStr);
-                        long finalBet = parseMultiplier(baseAmount, suffix);
+                        int baseAmount = Integer.parseInt(amountStr);
+                        int finalBet = parseMultiplier(baseAmount, suffix);
                         executePayout(playerName, finalBet);
                     } catch (NumberFormatException e) {
                         // Ignorieren
@@ -183,8 +179,8 @@ public class EconomyGambler extends Module {
             }
 
             try {
-                long baseAmount = Long.parseLong(amountStr);
-                long finalBet = parseMultiplier(baseAmount, suffix);
+                int baseAmount = Integer.parseInt(amountStr);
+                int finalBet = parseMultiplier(baseAmount, suffix);
                 
                 processBet(playerName, finalBet);
             } catch (NumberFormatException e) {
@@ -202,16 +198,19 @@ public class EconomyGambler extends Module {
         return false;
     }
 
-    private long parseMultiplier(long amount, String suffix) {
+    private boolean isNotBlacklisted(String username) {
+        return !isBlacklisted(username);
+    }
+
+    private int parseMultiplier(int amount, String suffix) {
         switch (suffix) {
-            case "k": return amount * 1_000L;
-            case "m": return amount * 1_000_000L;
-            case "b": return amount * 1_000_000_000L;
+            case "k": return amount * 1_000;
+            case "m": return amount * 1_000_000;
             default: return amount;
         }
     }
 
-    private void processBet(String player, long amount) {
+    private void processBet(String player, int amount) {
         if (amount < minBet.get()) {
             sendChatResponse(player, "Einsatz zu niedrig! Minimum ist $" + formatAmount(minBet.get()));
             refundPlayer(player, amount);
@@ -228,7 +227,7 @@ public class EconomyGambler extends Module {
         boolean isWin = roll <= winRate.get();
 
         if (isWin) {
-            long payout = (long) (amount * payoutMultiplier.get());
+            int payout = (int) (amount * payoutMultiplier.get());
             sendChatResponse(player, " GEWONNEN! Gewürfelt: " + String.format("%.1f", roll) + "/" + winRate.get() + "%. Gewinn: $" + formatAmount(payout));
             executePayout(player, payout);
         } else {
@@ -236,26 +235,25 @@ public class EconomyGambler extends Module {
         }
     }
 
-    private void refundPlayer(String player, long amount) {
+    private void refundPlayer(String player, int amount) {
         executePayout(player, amount);
     }
 
-    private void executePayout(String player, long amount) {
+    private void executePayout(String player, int amount) {
         String command = payCommand.get()
                 .replace("{player}", player)
                 .replace("{amount}", String.valueOf(amount));
         
-        mc.player.networkHandler.sendChatCommand(command.replace("/", ""));
+        mc.player.connection.sendChatCommand(command.replace("/", ""));
     }
 
     private void sendChatResponse(String player, String message) {
-        mc.player.networkHandler.sendChatMessage("/msg " + player + " " + message);
+        mc.player.connection.sendChatMessage("/msg " + player + " " + message);
     }
 
-    private String formatAmount(long amount) {
-        if (amount >= 1_000_000_000L) return (amount / 1_000_000_000L) + "B";
-        if (amount >= 1_000_000L) return (amount / 1_000_000L) + "M";
-        if (amount >= 1_000L) return (amount / 1_000L) + "k";
+    private String formatAmount(int amount) {
+        if (amount >= 1_000_000) return (amount / 1_000_000) + "M";
+        if (amount >= 1_000) return (amount / 1_000) + "k";
         return String.valueOf(amount);
     }
 }
